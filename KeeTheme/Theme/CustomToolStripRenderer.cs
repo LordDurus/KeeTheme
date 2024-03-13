@@ -1,6 +1,5 @@
-﻿using System.Windows.Forms;
-using System.Drawing;
-using System.Drawing.Drawing2D;
+﻿using System.Drawing;
+using System.Windows.Forms;
 using KeePass.UI.ToolStripRendering;
 
 namespace KeeTheme.Theme
@@ -8,7 +7,6 @@ namespace KeeTheme.Theme
 	class CustomToolStripRenderer : ProExtTsr
 	{
 		private readonly CustomTheme _customTheme;
-		private Brush _menuBackgroundBrush;
 
 		protected override bool EnsureTextContrast
 		{
@@ -33,13 +31,15 @@ namespace KeeTheme.Theme
 		protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
 		{
 			var ms = e.ToolStrip as MenuStrip;
-			if (ms != null) {
-				if (_menuBackgroundBrush == null) {
-					_menuBackgroundBrush = new SolidBrush(_customTheme.MenuItem.BackColor);
+			if (ms != null) 
+			{
+				using (var menuBackgroundBrush = new SolidBrush(_customTheme.MenuItem.BackColor))
+				{
+					e.Graphics.FillRectangle(menuBackgroundBrush, e.AffectedBounds);
 				}
-
-				e.Graphics.FillRectangle(_menuBackgroundBrush, e.AffectedBounds);
-			} else {
+			} 
+			else 
+			{
 				base.OnRenderToolStripBackground(e);
 			}
 		}

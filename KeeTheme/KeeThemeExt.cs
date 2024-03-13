@@ -1,12 +1,14 @@
 ﻿using System;
+using System.Collections;
 using System.Drawing;
+using System.Reflection;
 using System.Windows.Forms;
 using KeePass;
 using KeePass.Forms;
 using KeePass.Plugins;
-using KeePass.UI;
 using KeePassLib;
 using KeePassLib.Utility;
+using KeeTheme.Decorators;
 using KeeTheme.Options;
 using KeeTheme.Properties;
 
@@ -37,7 +39,7 @@ namespace KeeTheme
 
 			_options = new KeeThemeOptions(host);
 			_controlVisitor = new ControlVisitor(HandleControlVisit);
-			_theme = new KeeTheme();
+			_theme = new KeeTheme(_options);
 
 			_win10ThemeMonitor = new Win10ThemeMonitor(_options);
 			_win10ThemeMonitor.Initialize();
@@ -51,10 +53,57 @@ namespace KeeTheme
 			{
 				InitializeTheme();
 			}
-
-			GlobalWindowManager.WindowAdded += HandleGlobalWindowManagerWindowAdded;
+			
+			AttachApplicationOpenFormsAddedHandler();
 
 			return true;
+		}
+
+		private void AttachApplicationOpenFormsAddedHandler()
+		{
+			var customArrayList = new FormsArrayList();
+			customArrayList.AddRange(Application.OpenForms);
+			customArrayList.Added += HandleOpenFormsAdded;
+			
+			var listField = typeof(ReadOnlyCollectionBase).GetField("list", BindingFlags.Instance | BindingFlags.NonPublic);
+			if (listField != null)
+				listField.SetValue(Application.OpenForms, customArrayList);
+		}
+
+		private void HandleOpenFormsAdded(object sender, FormAddedEventArgs args)
+		{
+			if (_theme.Enabled)
+				_controlVisitor.Visit(args.Form);
+			
+			Win10ThemeMonitor.UseImmersiveDarkMode(args.Form, _theme.Enabled);
+			
+			var optionsForm = args.Form as OptionsForm;
+			if (optionsForm != null)
+			{
+				optionsForm.Shown += HandleOptionsFormShown;
+			}
+
+			var editStringForm = args.Form as EditStringForm;
+			if (editStringForm != null)
+			{
+				editStringForm.Load += HandleEditStringFormLoad;
+			}			
+			
+			var pwEntryForm = args.Form as PwEntryForm;
+			if (pwEntryForm != null)
+			{
+				pwEntryForm.Load += HandlePwEntryFormFormLoad;
+			}
+		}
+
+		private void HandlePwEntryFormFormLoad(object sender, EventArgs e)
+		{
+			PwGeneratorMenuDecorator.TryFindAndDecorate(sender, _theme);
+		}
+
+		private void HandleEditStringFormLoad(object sender, EventArgs e)
+		{
+			PwGeneratorMenuDecorator.TryFindAndDecorate(sender, _theme);
 		}
 
 		private void HandleTriggerSystemRaisingEvent(object sender, KeePass.Ecas.EcasRaisingEventArgs e)
@@ -77,6 +126,19 @@ namespace KeeTheme
 			{
 				_theme.Enabled = enable;
 				ApplyThemeInOpenForms();
+			};
+			
+			_options.TemplateChanged += templatePath =>
+			{
+				if (_theme.Enabled)
+				{
+					_theme.Enabled = false;
+					_theme.Enabled = true;
+
+					_menuItem.Text = TemplateReader.GetTemplateName(templatePath);
+
+					ApplyThemeInOpenForms();
+				}
 			}; 
 		}
 
@@ -111,28 +173,9 @@ namespace KeeTheme
 			Program.MainForm.RefreshEntriesList();
 		}
 
-		public override void Terminate()
-		{
-			GlobalWindowManager.WindowAdded -= HandleGlobalWindowManagerWindowAdded;
-		}
-
 		private void HandleControlVisit(Control control)
 		{
 			_theme.Apply(control);
-		}
-
-		private void HandleGlobalWindowManagerWindowAdded(object sender, GwmWindowEventArgs e)
-		{
-			if (_theme.Enabled)
-				_controlVisitor.Visit(e.Form);
-
-			Win10ThemeMonitor.UseImmersiveDarkMode(e.Form, _theme.Enabled);
-			
-			var optionsForm = e.Form as OptionsForm;
-			if (optionsForm != null)
-			{
-				optionsForm.Shown += HandleOptionsFormShown;
-			}
 		}
 
 		private void HandleOptionsFormShown(object sender, EventArgs e)

@@ -9,8 +9,8 @@ if ($psver -ge 3) {
 $packageName = 'keepass-plugin-keetheme'
 $fileName = 'KeeTheme.plgx'
 $packageSearch = 'KeePass Password Safe'
-$url = 'https://github.com/xatupal/KeeTheme/releases/download/v0.9.2/KeeTheme.plgx'
-$checksum = '1CE8A3C3D3A853E1F6FEF025768ECF85B50F2AC0546CF719DF4A12A857FD11B3'
+$url = 'https://github.com/xatupal/KeeTheme/releases/download/v0.10.6/KeeTheme.plgx'
+$checksum = 'BF2CB60B23CB38AAC32988F18F17643BAE9C9B6FF7755D675BD6D837E65388A8'
 $checksumType = 'sha256'
 
 function Get-KeePassPluginsPath {
@@ -30,16 +30,16 @@ function Get-KeePassPluginsPath {
 	$installPath = $regPath
 
 	if (! $installPath) {
-		Write-Verbose "Searching $env:ChocolateyBinRoot for portable install..."
-		$binRoot = Get-BinRoot
-		$portPath = Join-Path $binRoot "keepass"
+		$toolsLocation = Get-ToolsLocation
+		Write-Verbose "Searching $toolsLocation for portable install..."
+		$portPath = Join-Path $toolsLocation "keepass"
 		$installPath = Get-ChildItemDir $portPath* -ErrorAction SilentlyContinue
 	}
 
 	if (! $installPath) {
 		Write-Verbose "Searching $env:Path for unregistered install..."
 		$installFullName = (Get-Command keepass -ErrorAction SilentlyContinue).Path
-		if (! $installFullName) {
+		if ($installFullName) {
 		$installPath = [io.path]::GetDirectoryName($installFullName)
 		}
 	}

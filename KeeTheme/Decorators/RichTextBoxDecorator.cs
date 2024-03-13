@@ -4,7 +4,6 @@ using System.Drawing;
 using System.Windows.Forms;
 using KeePass.Forms;
 using KeePass.UI;
-using KeePassLib.Utility;
 using KeeTheme.Theme;
 
 namespace KeeTheme.Decorators
@@ -48,34 +47,63 @@ namespace KeeTheme.Decorators
 			Controls.Add(richTextBox);
 			EnabledChanged += HandleEnabledChanged;
 
-			if (Parent.GetType() != typeof(DataEditorForm))
-			{
-				richTextBox.TextChanged += HandleRichTextBoxTextChanged;
-				_richTextBoxNativeWindow = new RichTextBoxNativeWindow(richTextBox);
-				_richTextBoxNativeWindow.Paint += HandleRichTextBoxPaint;
-				_richTextBoxNativeWindow.LinkCreated += HandleRichTextBoxLinkCreated;
-			}
-			else
+			if (Parent.GetType() == typeof(DataEditorForm))
 			{
 				// Original font colors should be kept in the attachment viewer RTF document
 				var customRichTextBox = richTextBox as CustomRichTextBoxEx;
 				if (customRichTextBox != null && customRichTextBox.SimpleTextOnly)
 					richTextBox.TextChanged += HandleRichTextBoxTextChanged;
 			}
+			else
+			{
+				// An exception for custom keystroke sequence in EditAutoTypeItemForm
+				// Original font color should be kept to indicate valid and invalid placeholders
+				if (richTextBox.Name != "m_rbKeySeq")
+				{
+					richTextBox.TextChanged += HandleRichTextBoxTextChanged;
+				}
+				_richTextBoxNativeWindow = new RichTextBoxNativeWindow(richTextBox);
+				_richTextBoxNativeWindow.Paint += HandleRichTextBoxPaint;
+				_richTextBoxNativeWindow.LinkCreated += HandleRichTextBoxLinkCreated;
+				HandleTabStop(richTextBox);
+				richTextBox.TabStopChanged += HandleTabStopChanges;
+				richTextBox.TabIndexChanged += HandleTabStopChanges;
+			}
+
 			richTextBox.DockChanged += HandleRichTextBoxDockChanged;
+			richTextBox.SizeChanged += HandleRichTextBoxSizeChanged;
+			SizeChanged += HandleSizeChanged;
 		}
 
-		private void HandleRichTextBoxLinkCreated(object sender, EventArgs e)
+		private void HandleSizeChanged(object sender, EventArgs e)
+		{
+			_richTextBox.Size = Size;
+		}
+
+		private void HandleRichTextBoxSizeChanged(object sender, EventArgs e)
+        {
+			Control c = sender as Control;
+			if (c == null) return;
+			Size = c.Size;
+        }
+
+        private void HandleTabStopChanges(object sender, EventArgs e)
+        {
+			HandleTabStop(sender as RichTextBox);
+        }
+
+        private void HandleTabStop(RichTextBox richTextBox)
+        {
+			if (richTextBox == null) return;
+			TabStop = richTextBox.TabStop;
+			TabIndex = richTextBox.TabIndex;
+        }
+
+        private void HandleRichTextBoxLinkCreated(object sender, EventArgs e)
 		{
 			var customRichTextBox = sender as CustomRichTextBoxEx;
 			if (customRichTextBox == null)
 				return;
-
-			if (_lastText != customRichTextBox.Text)
-			{
-				_lastText = customRichTextBox.Text;
-				_detectedLinks.Clear();
-			}
 
 			var link = new Link();
 			link.Index = customRichTextBox.SelectionStart;
@@ -107,8 +135,12 @@ namespace KeeTheme.Decorators
 			{
 				var linkText = link.Text.Substring(range.First - link.Index, range.Length);
 				var startPoint = customRichTextBox.GetPositionFromCharIndex(range.First);
-				var startPointPadded = new Point(startPoint.X - 3, startPoint.Y);
-				TextRenderer.DrawText(graphics, linkText, font, startPointPadded, _theme.LinkLabel.LinkColor);
+				var textSize = TextRenderer.MeasureText(linkText, font);
+				using (var brush = new SolidBrush(customRichTextBox.BackColor))
+				{
+					graphics.FillRectangle(brush, new Rectangle(startPoint, textSize));
+				}
+				TextRenderer.DrawText(graphics, linkText, font, startPoint, _theme.LinkLabel.LinkColor);
 			}
 		}
 
@@ -166,8 +198,11 @@ namespace KeeTheme.Decorators
 
 			var richTextBox = (RichTextBox)sender;
 			ApplyFontColor(richTextBox);
-			if (richTextBox.TextLength == 0)
+			if (_lastText != richTextBox.Text)
+			{
+				_lastText = richTextBox.Text;
 				_detectedLinks.Clear();
+			}
 		}
 
 		private void ApplyFontColor(RichTextBox richTextBox)
